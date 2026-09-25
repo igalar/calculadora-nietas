@@ -63,7 +63,7 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 button:disabled { cursor: default; opacity: .45; }
 :focus-visible { outline: 3px solid var(--sombra-acento); outline-offset: 3px; }
 h1, h2, h3, .fredoka { font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 600; margin: 0; }
-.oculto-visual { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.oculto-visual { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 svg { display: block; }
 
 #app {
@@ -304,9 +304,20 @@ svg { display: block; }
 .extras button:active { transform: translateY(2px); }
 .extras button[aria-pressed="true"] { background: var(--op); border-color: var(--acento); }
 
+/* La calculadora ocupa justo el alto de la pantalla: el teclado toma el espacio que queda
+   y sus teclas se achican o agrandan para que siempre se vea completa, sin desplazarse. */
+#app:has(> .calculadora) { height: 100vh; height: 100dvh; min-height: 0; overflow-y: auto; }
+.calculadora { min-height: 0; }
+.calculadora .teclado {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 560px;
+  grid-auto-rows: minmax(44px, 1fr);
+}
+.calculadora .teclado .tecla { min-height: 0; }   /* el alto lo decide la fila */
 .teclado { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding-bottom: 6px; }
 .teclado .tecla {
-  min-height: 64px;
+  min-height: 44px;
   font-family: 'Fredoka', sans-serif;
   font-weight: 600;
   font-size: 1.75rem;
@@ -568,6 +579,33 @@ dialog dd { margin: 0; color: var(--texto2); }
   .visor .numero.mediano { font-size: 2.2rem; }
   .visor .numero.chico { font-size: 1.7rem; }
   .lista-audios { grid-template-columns: repeat(3, 1fr); }
+}
+/* Pantallas bajas (la mayoría de los celulares): todo un poco más compacto */
+@media (max-height: 820px) {
+  .calculadora { gap: 10px; }
+  .calculadora .volver { min-height: 30px; padding: 0 4px; }
+  .calculadora .encabezado h1 { font-size: 1.6rem; }
+  .calculadora .selector-perfil button { min-height: 36px; }
+  .visor { padding: 10px 16px 10px; border-radius: 22px; }
+  .visor .expresion { font-size: 1rem; }
+  .visor .numero { font-size: 2.8rem; }
+  .visor .numero.mediano { font-size: 2.2rem; }
+  .visor .numero.chico { font-size: 1.7rem; }
+  .visor .numero.mensaje { font-size: 1.6rem; }
+  .visor .linea { margin: 6px 0 8px; }
+  .habla .avatar { width: 32px; height: 32px; font-size: 1rem; }
+  .burbuja { min-height: 32px; padding: 5px 12px; }
+  .extras button { min-height: 40px; }
+  .calculadora .teclado { gap: 10px; }
+  .calculadora .pie { display: none; }
+}
+@media (max-height: 680px) {
+  .calculadora .antetitulo { display: none; }
+  .calculadora .encabezado h1 { font-size: 1.35rem; }
+  .visor .numero { font-size: 2.4rem; }
+  .habla { display: none; }
+  .visor .linea { display: none; }
+  .calculadora .teclado { gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
