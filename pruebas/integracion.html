@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Integración</title>
+  <style>body { font-family: system-ui, sans-serif; margin: 24px; } .bien { color: #1d7a3a; } .mal { color: #b3261e; }</style>
+</head>
+<body>
+  <h1>Pruebas de integración (audio y almacenamiento)</h1>
+  <p>Usa el almacenamiento de este navegador con un perfil de prueba y lo borra al terminar.
+     Se escucharán unos tonos y la voz del sistema.</p>
+  <ul id="lista"></ul>
+  <script type="module">
+    import * as db from '../js/db.js';
+    import * as voz from '../js/voz.js';
+    import { procesarGrabacion } from '../js/grabador.js';
+    import { codificarWav } from '../js/logica/wav.js';
+    import { crearZip, leerZip } from '../js/logica/zip.js';
+
+    const lista = document.getElementById('lista');
+    const resultados = [];
+    async function prueba(nombre, fn) {
+      const li = document.createElement('li');
+      try { const extra = await fn(); li.className = 'bien'; li.textContent = '✔ ' + nombre + (extra ? ' — ' + extra : ''); resultados.push(true); }
+      catch (e) { li.className = 'mal'; li.textContent = '✘ ' + nombre + ' — ' + e.message; resultados.push(false); }
+      lista.appendChild(li);
+    }
+    const verdadero = (v, m) => { if (!v) throw new Error(m); };
+
+    // Tono de prueba: silencio + tono + silencio
+    function tono(frecuenciaTono, segundos, silencio = 0, muestreo = 24000) {
+      const m = new Float32Array(Math.round((segundos + 2 * silencio) * muestreo));
+      const ini = Math.round(silencio * muestreo), fin = ini + Math.round(segundos * muestreo);
+      for (let i = ini; i < fin; i++) m[i] = 0.4 * Math.sin(2 * Math.PI * frecuenciaTono * i / muestreo);
+      return codificarWav(m, muestreo).buffer;
+    }
+    const PERFIL = 'nieta1';
+    const guardadosAntes = new Set(await db.listarAudios());
+    const creados = [];
+
+    await prueba('procesar grabación: recorta silencios y pasa a 24 kHz', async () => {
+      const r = await procesarGrabacion(tono(440, 0.5, 1, 48000));
+      verdadero(r, 'devolvió null');
+      verdadero(r.duracion > 0.5 && r.duracion < 0.75, 'duración ' + r.duracion.toFixed(2) + ' s');
+      verdadero(new DataView(r.wav).getUint32(24, true) === 24000, 'frecuencia distinta de 24 kHz');
+      return r.duracion.toFixed(2) + ' s (de 2,5 s grabados)';
+    });
+    await prueba('procesar grabación: silencio total devuelve null', async () => {
+      verdadero((await procesarGrabacion(tono(440, 0, 1))) === null, 'no devolvió null');
+    });
+    await prueba('guardar grabaciones de prueba', async () => {
+      for (const [id, f] of [['n7', 523], ['igual', 659]]) {
+        if (guardadosAntes.has(PERFIL + '/' + id)) continue;   // no pisar grabaciones reales
+        await db.guardarAudio(PERFIL, id, tono(f, 0.25));
+        creados.push(id);
+      }
+      await voz.actualizarLista();
+      verdadero(voz.estaGrabado(PERFIL, 'n7') && voz.estaGrabado(PERFIL, 'igual'), 'no quedaron guardadas');
+    });
+    await prueba('decir: encadena grabaciones sin pausas', async () => {
+      const t0 = performance.now();
+      const ok = await voz.decir(['n7', 'igual', 'n7'], PERFIL, { forzar: true });
+      const ms = performance.now() - t0;
+      verdadero(ok, 'no terminó');
+      verdadero(ms > 700 && ms < 1400, 'duró ' + Math.round(ms) + ' ms');
+      return Math.round(ms) + ' ms para 3 palabras de 250 ms';
+    });
+    await prueba('decir: una frase nueva interrumpe la anterior', async () => {
+      const primera = voz.decir(['n7', 'n7', 'n7', 'n7'], PERFIL, { forzar: true });
+      await new Promise(r => setTimeout(r, 150));
+      const segunda = voz.decir(['igual'], PERFIL, { forzar: true });
+      verdadero((await primera) === false, 'la primera no se interrumpió');
+      verdadero((await segunda) === true, 'la segunda no terminó');
+    });
+    await prueba('decir: usa la voz del sistema si falta una grabación', async () => {
+      const ok = await voz.decir(['n7', 'mas', 'n7'], PERFIL, { forzar: true });
+      verdadero(ok, 'no terminó');
+      return 'hay voz del sistema: ' + (speechSynthesis.getVoices().filter(v => v.lang.startsWith('es')).map(v => v.lang).join(', ') || 'ninguna en español');
+    });
+    await prueba('exportar e importar zip con grabaciones reales de la base', async () => {
+      const datos = await db.leerAudio(PERFIL, 'n7');
+      const zip = crearZip([{ nombre: PERFIL + '/n7.wav', datos: new Uint8Array(datos) }]);
+      const [leido] = await leerZip(zip);
+      verdadero(leido.datos.length === datos.byteLength, 'tamaño distinto');
+      const ctx = new AudioContext();
+      const b = await ctx.decodeAudioData(leido.datos.slice().buffer);
+      verdadero(Math.abs(b.duration - 0.25) < 0.02, 'duración ' + b.duration);
+    });
+
+    // Limpiar lo creado para la prueba
+    for (const id of creados) { await db.borrarAudio(PERFIL, id); voz.olvidar(PERFIL, id); }
+    await voz.actualizarLista();
+    const fallidas = resultados.filter(r => !r).length;
+    document.title = fallidas ? `FALLARON ${fallidas} de ${resultados.length}` : `PASARON ${resultados.length}`;
+  </script>
+</body>
+</html>

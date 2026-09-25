@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Offline</title>
+<style>body { font-family: system-ui, sans-serif; margin: 24px; }</style></head>
+<body>
+  <h1>Prueba del modo sin internet</h1>
+  <p>Abre primero la app (index.html) una vez; luego esta página revisa que todo quedó guardado.</p>
+  <pre id="r">Revisando…</pre>
+  <script type="module">
+    const r = document.getElementById('r');
+    const reg = await navigator.serviceWorker.getRegistration('../');
+    const lineas = [];
+    lineas.push('Service worker: ' + (reg && reg.active ? 'activo (' + reg.active.state + ')' : 'NO instalado'));
+    const nombres = await caches.keys();
+    lineas.push('Cachés: ' + nombres.join(', '));
+    let faltan = [];
+    if (nombres.length) {
+      const cache = await caches.open(nombres[0]);
+      const guardados = (await cache.keys()).map(q => new URL(q.url).pathname);
+      lineas.push('Archivos guardados: ' + guardados.length);
+      const texto = await (await fetch('../sw.js', { cache: 'no-store' })).text();
+      const lista = [...texto.matchAll(/^\s+'([^']+)',?$/gm)].map(m => m[1]);
+      faltan = lista.filter(a => !guardados.includes(new URL('../' + a, location.href).pathname));
+      lineas.push('Faltan: ' + (faltan.join(', ') || 'ninguno'));
+    }
+    r.textContent = lineas.join('\n');
+    document.title = reg && reg.active && nombres.length && !faltan.length ? 'OFFLINE OK' : 'OFFLINE FALLA';
+  </script>
+</body>
+</html>

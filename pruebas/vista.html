@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es-CL" data-perfil="nieta1">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#FFF0F4">
+  <title>Vista de prueba</title>
+  <link rel="stylesheet" href="../estilos.css">
+  <!--
+    Herramienta para revisar pantallas: abre una pantalla con un perfil y simula toques.
+    Ejemplo: vista.html?perfil=nieta2&ruta=multiplicando&clics=[data-modo=mapa]
+    Los errores de JavaScript se muestran en un recuadro rojo.
+  -->
+</head>
+<body>
+  <main id="app"></main>
+  <p id="anuncio" class="oculto-visual" aria-live="polite"></p>
+  <script>
+    const mostrarError = m => {
+      const d = document.createElement('pre');
+      d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#b3261e;color:#fff;padding:8px;margin:0;font-size:12px;white-space:pre-wrap;z-index:99';
+      d.textContent = 'ERROR: ' + m;
+      document.body.appendChild(d);
+    };
+    window.addEventListener('error', e => mostrarError(e.message + ' @ ' + e.filename + ':' + e.lineno));
+    window.addEventListener('unhandledrejection', e => mostrarError(String(e.reason && e.reason.stack || e.reason)));
+  </script>
+  <script type="module">
+    const q = new URLSearchParams(location.search);
+    if (q.get('ancho')) {
+      const s = document.createElement('style');
+      s.textContent = `html { width: ${q.get('ancho')}px; overflow-x: hidden; } #app { max-width: ${q.get('ancho')}px; margin: 0; }`;
+      document.head.appendChild(s);
+    }
+    const { app } = await import('../js/app.js');
+    if (q.get('mudo')) {
+      const voz = await import('../js/voz.js');
+      voz.estado.activa = false;
+    }
+    await new Promise(r => setTimeout(r, 300));
+    if (q.get('perfil')) await app.cambiarPerfil(q.get('perfil'), { redibujar: false });
+    if (q.get('ruta') === 'estudio') app.estudioAbierto = true;
+    if (q.get('sembrar')) {
+      // Avance de ejemplo para ver el mapa y las estrellas pintadas
+      const db = await import('../js/db.js');
+      const p = {};
+      for (const a of [1, 2, 5, 10]) for (let b = 1; b <= 10; b++) p[a + 'x' + b] = { racha: 3, fallos: 0, intentos: 3 };
+      for (let b = 1; b <= 6; b++) p['3x' + b] = { racha: 1, fallos: 1, intentos: 2 };
+      await db.guardarDato('tablas-' + app.perfil, p);
+      await db.guardarDato('desafio-' + app.perfil, { estrellas: 7, aciertos: 38 });
+    }
+    if (q.get('ruta')) app.ir(q.get('ruta'));
+    await new Promise(r => setTimeout(r, 700));
+    for (const selector of (q.get('clics') || '').split('|').filter(Boolean)) {
+      const el = document.querySelector(selector);
+      if (!el) { mostrarError('No encontré ' + selector); break; }
+      el.click();
+      await new Promise(r => setTimeout(r, 250));
+    }
+    document.body.dataset.listo = '1';
+  </script>
+</body>
+</html>
